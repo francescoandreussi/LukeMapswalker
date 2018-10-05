@@ -10,7 +10,11 @@ import android.support.wearable.activity.WearableActivity;
 import android.util.Log;
 import android.widget.TextView;
 
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.wearable.DataClient;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.Wearable;
 
@@ -38,6 +42,9 @@ public class WearActivity extends WearableActivity implements SensorEventListene
     private PutDataMapRequest sensorData;
     private float[] rotMat = new float[16];
     private float[] orientation = new float[3];
+    private boolean accData = false;
+    private boolean gyroData = false;
+    private boolean orientData = false;
 
     SensorManager mSensorManager;
 
@@ -72,48 +79,68 @@ public class WearActivity extends WearableActivity implements SensorEventListene
     @Override
     public void onSensorChanged(SensorEvent event) {
         //client.sendSensorData(event.sensor.getType(), event.accuracy, event.timestamp, event.values);
-        sensorData = PutDataMapRequest.create("/data").setUrgent();
+        sensorData = PutDataMapRequest.create("/wear").setUrgent();
         switch (event.sensor.getType()) {
             case SENS_LINEAR_ACCELERATION:
-                accelerometerTextView.setText("Accelerometer (no gravity):\n X " + new DecimalFormat("#.###").format(event.values[0]) +
-                        " Y " +  new DecimalFormat("#.###").format(event.values[1]) +
-                        " Z " +  new DecimalFormat("#.###").format(event.values[2]));
-                sensorData.getDataMap().putFloatArray("accVec", event.values);
-                //PutDataRequest accVecSendable = accVec.asPutDataRequest();
-                //Task<DataItem> putAccVecTask = Wearable.getDataClient(this).putDataItem(accVecSendable);
+                if(!accData) {
+                    accelerometerTextView.setText("Accelerometer (no gravity):\n X " + new DecimalFormat("#.###").format(event.values[0]) +
+                            " Y " + new DecimalFormat("#.###").format(event.values[1]) +
+                            " Z " + new DecimalFormat("#.###").format(event.values[2]));
+                    sensorData.getDataMap().putFloatArray("accVec", event.values.clone());
+                    //sensorData.getDataMap().putInt("a", 1);
+                    accData = true;
+                    //PutDataRequest accVecSendable = accVec.asPutDataRequest();
+                    //Task<DataItem> putAccVecTask = Wearable.getDataClient(this).putDataItem(accVecSendable);
+                }
                 break;
             case SENS_GYROSCOPE:
-                gyroscopeTextView.setText("Gyroscope:\n X " + new DecimalFormat("#.###").format(event.values[0]) +
-                        " Y " +  new DecimalFormat("#.###").format(event.values[1]) +
-                        " Z " +  new DecimalFormat("#.###").format(event.values[2]));
-                //sensorData = PutDataMapRequest.create("/gyroVec").setUrgent();
-                sensorData.getDataMap().putFloatArray("gyroVec", event.values);
-                //PutDataRequest gyroVecSendable = gyroVec.asPutDataRequest();
-                //Task<DataItem> putGyroVecTask = Wearable.getDataClient(this).putDataItem(gyroVecSendable);
+                if(!gyroData) {
+                    gyroscopeTextView.setText("Gyroscope:\n X " + new DecimalFormat("#.###").format(event.values[0]) +
+                            " Y " + new DecimalFormat("#.###").format(event.values[1]) +
+                            " Z " + new DecimalFormat("#.###").format(event.values[2]));
+                    //sensorData = PutDataMapRequest.create("/gyroVec").setUrgent();
+                    sensorData.getDataMap().putFloatArray("gyroVec", event.values.clone());
+                    //sensorData.getDataMap().putInt("b", 2);
+                    gyroData = true;
+                    //PutDataRequest gyroVecSendable = gyroVec.asPutDataRequest();
+                    //Task<DataItem> putGyroVecTask = Wearable.getDataClient(this).putDataItem(gyroVecSendable);
+                }
                 break;
             case SENS_ROTATION_VECTOR:
-                SensorManager.getRotationMatrixFromVector(rotMat, event.values);
-                SensorManager.getOrientation(rotMat, orientation);
-                rotVecTextView.setText("Orientation:\n Azimuth " + new DecimalFormat("#.###").format(event.values[0]) +
-                        " Pitch " +  new DecimalFormat("#.###").format(event.values[1]) +
-                        " Roll "  +  new DecimalFormat("#.###").format(event.values[2]));
-                //orientVec = PutDataMapRequest.create("/orientVec").setUrgent();
-                sensorData.getDataMap().putFloatArray("orientVec", orientation);
-                //PutDataRequest orientVecSendable = orientVec.asPutDataRequest();
-                //Task<DataItem> putOrientVecTask = Wearable.getDataClient(this).putDataItem(orientVecSendable);
+                if(!orientData) {
+                    SensorManager.getRotationMatrixFromVector(rotMat, event.values);
+                    SensorManager.getOrientation(rotMat, orientation);
+                    rotVecTextView.setText("Orientation:\n Azimuth " + new DecimalFormat("#.###").format(orientation[0]) +
+                            " Pitch " + new DecimalFormat("#.###").format(orientation[1]) +
+                            " Roll " + new DecimalFormat("#.###").format(orientation[2]));
+                    //orientVec = PutDataMapRequest.create("/orientVec").setUrgent();
+                    sensorData.getDataMap().putFloatArray("orientVec", orientation.clone());
+                    //sensorData.getDataMap().putInt("c", 3);
+                    orientData = true;
+                    //PutDataRequest orientVecSendable = orientVec.asPutDataRequest();
+                    //Task<DataItem> putOrientVecTask = Wearable.getDataClient(this).putDataItem(orientVecSendable);
+                }
                 break;
             case SENS_SIGNIFICANT_MOTION:
                 significantMotionText.setText("Significant Motion: " + event.values);
         }
         sensorData.getDataMap().putLong("time", new Date().getTime());
         //Wearable.getDataClient(this).putDataItem(sensorData.asPutDataRequest());
-        client.putDataItem(sensorData.asPutDataRequest());
+        sendData(sensorData);
         //client.sendSensorData(event.sensor.getType(), event.accuracy, event.timestamp, event.values);
     }
 
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
+    private void sendData(PutDataMapRequest data){
+        if(accData && gyroData && orientData) {
+            Task<DataItem> dataItemTask = client.putDataItem(data.asPutDataRequest());
+            dataItemTask.addOnSuccessListener(new OnSuccessListener<DataItem>() {
+                @Override
+                public void onSuccess(DataItem dataItem) {
+                    Log.d("SentData", "Sending Data was successful: " + dataItem);
+                    accData = gyroData = orientData = false;
+                }
+            });
+        }
     }
 
     protected void startMeasurement() {
@@ -165,4 +192,7 @@ public class WearActivity extends WearableActivity implements SensorEventListene
             mScheduler.shutdown();
         }
     }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy){}
 }

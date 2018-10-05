@@ -1,6 +1,7 @@
 package com.mis.francescoandreussi.lukemapswalker;
 
 import android.app.Activity;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,6 +12,9 @@ import android.widget.Button;
 import android.widget.Toast;
 import android.widget.ViewSwitcher;
 
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
@@ -23,9 +27,11 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.StreetViewPanoramaCamera;
 import com.google.android.gms.maps.model.StreetViewPanoramaLocation;
+import com.google.android.gms.tasks.Task;
 import com.google.android.gms.wearable.DataClient;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
@@ -61,6 +67,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
 
     private Marker marker;
     private boolean smartwatchMode = false;
+    private boolean moving = false;
     private boolean panoramaAvailable = true;
     private boolean exiting = false;
     private Button enterSVButton;
@@ -69,9 +76,9 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
 
     private ArrayList<LatLng> visitedPath = new ArrayList<>();
 
-    private float[] accVec;
-    private float[] gyroVec;
-    private float[] orientVec;
+    private float[] accVec = new float[3];
+    private float[] gyroVec = new float[3];
+    private float[] orientVec = new float[3];
     private float[] prevOrientVec = new float[3];
     private StreetViewPanoramaLocation prevLocation;
 
@@ -127,7 +134,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
 
         streetViewPanoramaView.onCreate(mStreetViewBundle);
         streetViewPanoramaView.getStreetViewPanoramaAsync(this);
-        //streetViewPanoramaView.setVisibility(View.INVISIBLE);
+        visitedPath.add(SYDNEY);
 
         enterSVButton   = findViewById(R.id.enterSV);
         exitSVButton    = findViewById(R.id.exitSV);
@@ -159,9 +166,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
                 if(viewSwitcher.getCurrentView() == streetViewLayout){
                     //streetViewPanoramaView.setVisibility(View.INVISIBLE);
                     //mapView.setVisibility(View.VISIBLE);
-                    viewSwitcher.showNext();
-                    mapView.onStart();
-                    streetViewPanoramaView.onDestroy();
+                    //viewSwitcher.showNext();
 
                     exiting = true;
                 }
@@ -181,45 +186,31 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
             public void onClick(View v) {
                 if(viewSwitcher.getCurrentView() == streetViewLayout){
                     smartwatchMode = !smartwatchMode;
-                    streetView.setPanningGesturesEnabled(smartwatchMode);
-                    streetView.setZoomGesturesEnabled(smartwatchMode);
-                    streetView.setUserNavigationEnabled(smartwatchMode);
+                    streetView.setPanningGesturesEnabled(!smartwatchMode);
+                    streetView.setZoomGesturesEnabled(!smartwatchMode);
+                    streetView.setUserNavigationEnabled(!smartwatchMode);
                     if(smartwatchMode) {
-                        // = Wearable.getDataClient(MapsActivity.this);//.addListener(MapsActivity.this);
                         //Log.e("listener", dataClient.toString());
-                        //dataClient.addListener(MapsActivity.this);
-                        /*timer.scheduleAtFixedRate(new TimerTask() {
-                            @Override
-                            public void run() {
-                                StreetViewPanoramaCamera currentCamera = streetView.getPanoramaCamera();
-                                StreetViewPanoramaCamera nextCamera = new StreetViewPanoramaCamera.Builder()
-                                        .zoom(currentCamera.zoom)
-                                        .tilt(currentCamera.tilt + deltaTilt)
-                                        .bearing(currentCamera.bearing + deltaBearing)
-                                        .build();
-                                streetView.animateTo(nextCamera, animDuration);
-                                streetView.setPosition(move(streetView.getLocation().position, deltaLatLng));
-                                visitedPath.add(streetView.getLocation().position);
-                            }
-                        }, 0, 1000);*/
                         handler.postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                StreetViewPanoramaCamera currentCamera = streetView.getPanoramaCamera();
-                                StreetViewPanoramaCamera nextCamera = new StreetViewPanoramaCamera.Builder()
-                                        .zoom(currentCamera.zoom)
-                                        .tilt(currentCamera.tilt + deltaTilt)
-                                        .bearing(currentCamera.bearing + deltaBearing)
-                                        .build();
-                                streetView.animateTo(nextCamera, animDuration);
-                                prevLocation = streetView.getLocation();
-                                streetView.setPosition(move(streetView.getLocation().position, deltaLatLng));
-                                if(streetView.getLocation().position == null){
-                                    streetView.setPosition(prevLocation.position);
+                                if (moving) {
+                                    StreetViewPanoramaCamera currentCamera = streetView.getPanoramaCamera();
+                                    StreetViewPanoramaCamera nextCamera = new StreetViewPanoramaCamera.Builder()
+                                            .zoom(currentCamera.zoom)
+                                            .tilt(currentCamera.tilt + deltaTilt)
+                                            .bearing(currentCamera.bearing + deltaBearing)
+                                            .build();
+                                    streetView.animateTo(nextCamera, animDuration);
+                                    prevLocation = streetView.getLocation();
+                                    streetView.setPosition(move(streetView.getLocation().position, deltaLatLng));
+                                    if (streetView.getLocation().position == null) {
+                                        streetView.setPosition(prevLocation.position);
+                                    }
+                                    visitedPath.add(streetView.getLocation().position);
                                 }
-                                visitedPath.add(streetView.getLocation().position);
                             }
-                        }, 1000);
+                        }, 10);
                     } else {
                         //Wearable.getDataClient(MapsActivity.this).removeListener(MapsActivity.this);
                     }
@@ -228,8 +219,8 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
                 }
             }
         });
-        dataClient = Wearable.getDataClient(getApplicationContext());
-        dataClient.addListener(this);
+        //dataClient = Wearable.getDataClient(getApplicationContext());
+        //dataClient.addListener(this);
     }
 
 
@@ -238,7 +229,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         super.onResume();
         mapView.onResume();
         streetViewPanoramaView.onResume();
-        //dataClient.addListener(this);
+        Wearable.getDataClient(this).addListener(this);
     }
 
     @Override
@@ -246,7 +237,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         super.onPause();
         mapView.onPause();
         streetViewPanoramaView.onPause();
-        //dataClient.removeListener(this);
+        Wearable.getDataClient(this).removeListener(this);
     }
 
     @Override
@@ -274,8 +265,9 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(ny));
     }
 
-    //@Override
+    @Override
     public void onMapLongClick(LatLng point){
+        Log.d("MapLongClick","Long click performed");
         mGoogleMap.clear();
         marker = mGoogleMap.addMarker(new MarkerOptions().position(point));
         streetView.setPosition(marker.getPosition());
@@ -315,36 +307,79 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
 
     @Override
     public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
-
-        Log.e("debug", "OUTSIDE THE IF");
+        Log.e("debug", "OUTSIDE THE IF " + smartwatchMode);
         if(viewSwitcher.getCurrentView() == streetViewLayout && smartwatchMode) {
-            Log.e("debug", "INSIDE THE IF");
+            Log.e("debug", "INSIDE THE IF " + dataEventBuffer.getCount());
             for (DataEvent event : dataEventBuffer) {
-                Log.v("check", event.toString());
-                if(event.getDataItem().getUri().getPath() != null && event.getDataItem().getUri().getPath() == "/data") {
-                    accVec = DataMapItem.fromDataItem(event.getDataItem()).getDataMap().getFloatArray("accVec");
-                    Log.e("ACC_VEC", accVec.toString());
-                    gyroVec = DataMapItem.fromDataItem(event.getDataItem()).getDataMap().getFloatArray("gyroVec");
-                    orientVec = DataMapItem.fromDataItem(event.getDataItem()).getDataMap().getFloatArray("orientVec");
-                    Log.e("ORIENT_VEC", orientVec.toString());
-                    dataClient.deleteDataItems(event.getDataItem().getUri());
+                if(event.getType() == DataEvent.TYPE_CHANGED) {
+                    DataItem item = event.getDataItem();
+                    Log.d("check", event.toString() + event.getDataItem().getUri().getPath());
+                    if (item.getUri().getPath().compareTo("/wear") == 0 ) {
+                        /**
+                         * accVec, gyroVec and orientVec are, in the wide majority of the cases, null.
+                         * We cannot understand the reason.
+                         * Hence, the connected features are almost never working.
+                         */
+                        accVec = (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getFloatArray("accVec");
+                        if (accVec != null) Log.d("ACC_VEC", "" + accVec.toString());
+                        gyroVec = (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getFloatArray("gyroVec");
+                        if (gyroVec != null) Log.d("GYRO_VEC", gyroVec.toString());
+                        orientVec = (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getFloatArray("orientVec");
+                        if (orientVec != null) Log.d("ORIENT_VEC", orientVec.toString());
+                        Wearable.getDataClient(this).deleteDataItems(event.getDataItem().getUri());
+                        //troubleshooting code
+                        //Log.d("A","" + (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getInt("a"));
+                        //Log.d("B","" + (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getInt("b"));
+                        //Log.d("C","" + (DataMapItem.fromDataItem(event.getDataItem())).getDataMap().getInt("c"));
+                    }
                 }
             }
-            if(zeroOrient == null){
-                zeroOrient = orientVec;
+            if(accVec != null && magnitude(accVec) > 0.5f){
+                moving = true;
             }
-            if(magnitude(diff(prevOrientVec,orientVec)) > orientThreshold){
-                prevOrientVec = orientVec;
-                float[] normalizedRotVec = diff(orientVec, zeroOrient);
-                //TODO: map normalizedRotVec to deltaTilt, deltaBearing and deltaLatLng
+            /*if(zeroOrient == null){
+                zeroOrient = orientVec;
+            }*/
+            if(gyroVec != null){
+                //prevOrientVec = orientVec;
+                //float[] normalizedRotVec = diff(orientVec, zeroOrient);
+                //BEARING around X (+ to the right)
+                if(Math.abs(gyroVec[0]) >= 0.1){
+                    deltaBearing = 10 * gyroVec[0];
+                }
+                //TILT around Z (+ to the down)
+                if(Math.abs(gyroVec[2]) >= 0.1 && Math.abs(10 * gyroVec[2]) <= 90){
+                    deltaBearing = 10 * gyroVec[2];
+                }
+                //LATLNG around Y (+ to the right)
+                float bearing = streetView.getPanoramaCamera().bearing * (float) Math.PI / 180;
+                float speed = 0;
+                if(Math.abs(gyroVec[1]) >= 0.1){
+                    speed = gyroVec[1];
+                }
+                float c = 0.1f;
+                deltaLatLng = new LatLng(speed * c * Math.cos(bearing), speed * c * Math.sin(bearing));
+
             }
         }
-        if(exiting){
-            //TODO: implement exiting options (up, down, right, left)
-            /*streetViewPanoramaView.setVisibility(View.INVISIBLE);
-            mapView.setVisibility(View.VISIBLE);
-            viewSwitcher.showNext();
-            exiting = false;*/
+        if(exiting && accVec != null && magnitude(accVec) > 0.1) {
+            if(Math.abs(accVec[0]) >= Math.abs(accVec[2]) && accVec[0] < 0) { //up -> simple exit
+                //streetViewPanoramaView.setVisibility(View.INVISIBLE);
+                //mapView.setVisibility(View.VISIBLE);
+                viewSwitcher.showNext();
+                Toast.makeText(this, "EXIT STREETVIEW", Toast.LENGTH_SHORT).show();
+            } else if(Math.abs(accVec[0]) >= Math.abs(accVec[2]) && accVec[0] >=  0) { //down -> continue streetView
+                Toast.makeText(this, "CONTINUE STREETVIEW", Toast.LENGTH_SHORT).show();
+            } else if(Math.abs(accVec[2]) >= Math.abs(accVec[0]) && accVec[2] < 0) { //right -> save path & exit
+                Polyline visitedPathPolyline = mGoogleMap.addPolyline(new PolylineOptions().addAll(visitedPath));
+                //TODO: save visitedPathPolyline
+                viewSwitcher.showNext();
+                Toast.makeText(this, "SAVE and EXIT STREETVIEW", Toast.LENGTH_SHORT).show();
+            } else if(Math.abs(accVec[2]) >= Math.abs(accVec[0]) && accVec[2] >=  0) { //left -> save & to initial position
+                streetView.setPosition(marker.getPosition());
+                Toast.makeText(this, "RETURN to INITIAL POINT", Toast.LENGTH_SHORT).show();
+            }
+            exiting = false;
         }
     }
 
