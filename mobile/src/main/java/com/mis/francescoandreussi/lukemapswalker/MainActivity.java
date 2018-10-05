@@ -14,7 +14,6 @@ import android.widget.ViewSwitcher;
 
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
@@ -27,7 +26,6 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.StreetViewPanoramaCamera;
 import com.google.android.gms.maps.model.StreetViewPanoramaLocation;
-import com.google.android.gms.tasks.Task;
 import com.google.android.gms.wearable.DataClient;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
@@ -50,7 +48,6 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
     private MapView mapView;
     private GoogleMap mGoogleMap;
 
-    //private DataClient dataClient;
 
     private static final String MAP_VIEW_BUNDLE_KEY = "MapViewBundleKey";
 
@@ -60,7 +57,6 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
     private static final String STREETVIEW_BUNDLE = "StreetViewBundle";
     private StreetViewPanorama streetView;
 
-    //private static final String STREETVIEW_BUNDLE_KEY = "StreetViewBundleKey";
 
     private Wearable.WearableOptions wearableOptions = new Wearable.WearableOptions.Builder().setLooper(Looper.myLooper()).build();
     private DataClient dataClient;// = Wearable.getDataClient(this);
@@ -83,15 +79,16 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
     private StreetViewPanoramaLocation prevLocation;
 
     private int animDuration = 0;
-    private float[] zeroOrient;// = {?, 0f, (float) Math.PI/2}; //???
+    private float[] zeroOrient;
     private float orientThreshold = (float) Math.PI/10;
     private float deltaTilt = 0;
     private float deltaBearing = 0;
     private LatLng deltaLatLng = new LatLng(0,0);
 
-    private Timer timer = new Timer(true);
     private final Handler handler = new Handler();
     private Bundle mapViewBundle = null;
+
+    // The unused variables would have been useful if the project were working as intended in the first place
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,23 +104,10 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
             mapViewBundle = savedInstanceState.getBundle(MAP_VIEW_BUNDLE_KEY);
         }
 
+        // Initializing the MapView
         mapView = findViewById(R.id.map_view);
         mapView.onCreate(mapViewBundle);
         mapView.getMapAsync(this);
-
-        /*LinearLayout linearLayout = findViewById(R.id.streetView_layout);
-
-        final StreetViewPanoramaOptions options = new StreetViewPanoramaOptions();
-        if (savedInstanceState == null) {
-            options.position(SYDNEY);
-        }
-
-        streetViewPanoramaView = new StreetViewPanoramaView(this, options);
-        streetViewPanoramaView.getStreetViewPanoramaAsync(this);
-
-        linearLayout.addView(streetViewPanoramaView,
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT));*/
 
         streetViewPanoramaView = findViewById(R.id.streetView_view);
 
@@ -132,6 +116,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
             mStreetViewBundle = savedInstanceState.getBundle(STREETVIEW_BUNDLE);
         }
 
+        // Initializing the StreetPanoramaView
         streetViewPanoramaView.onCreate(mStreetViewBundle);
         streetViewPanoramaView.getStreetViewPanoramaAsync(this);
         visitedPath.add(SYDNEY);
@@ -140,23 +125,18 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         exitSVButton    = findViewById(R.id.exitSV);
         playPauseButton = findViewById(R.id.playPause);
 
+        // Defining the behaviour of the buttons
         enterSVButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if(viewSwitcher.getCurrentView() == mapLayout && panoramaAvailable){
-                    //streetViewPanoramaView.setVisibility(View.VISIBLE);
-                    //mapView.setVisibility(View.INVISIBLE);
                     mapView.onStop();
                     streetViewPanoramaView.onStart();
-                    viewSwitcher.showNext();
+                    viewSwitcher.showNext(); // Go to StreetView
                 }
                 else{
-                    //streetViewPanoramaView.setVisibility(View.INVISIBLE);
-                    //mapView.setVisibility(View.VISIBLE);
-                    //viewSwitcher.showPrevious();
                     Toast.makeText(getApplicationContext(),"ERROR",Toast.LENGTH_SHORT).show();
                 }
-                //playPauseButton.setVisibility(streetViewPanoramaView.getVisibility());
             }
         });
 
@@ -164,34 +144,26 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
             @Override
             public void onClick(View v) {
                 if(viewSwitcher.getCurrentView() == streetViewLayout){
-                    //streetViewPanoramaView.setVisibility(View.INVISIBLE);
-                    //mapView.setVisibility(View.VISIBLE);
-                    //viewSwitcher.showNext();
-
+                    //viewSwitcher.showNext(); // To avoid the confirmation via smartwatch
                     exiting = true;
                 }
                 else{
-                    //streetViewPanoramaView.setVisibility(View.INVISIBLE);
-                    //mapView.setVisibility(View.VISIBLE);
-                    //viewSwitcher.showPrevious();
                     Toast.makeText(getApplicationContext(),"ERROR",Toast.LENGTH_SHORT).show();
                 }
-                //playPauseButton.setVisibility(streetViewPanoramaView.getVisibility());
             }
         });
 
-        //playPauseButton.setVisibility(streetViewPanoramaView.getVisibility());
         playPauseButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if(viewSwitcher.getCurrentView() == streetViewLayout){
-                    smartwatchMode = !smartwatchMode;
-                    streetView.setPanningGesturesEnabled(!smartwatchMode);
+                    smartwatchMode = !smartwatchMode; // Change value of smartwatchMode (true if Play, false otherwise)
+                    streetView.setPanningGesturesEnabled(!smartwatchMode); // Enable/Disable gestures
                     streetView.setZoomGesturesEnabled(!smartwatchMode);
                     streetView.setUserNavigationEnabled(!smartwatchMode);
                     if(smartwatchMode) {
                         //Log.e("listener", dataClient.toString());
-                        handler.postDelayed(new Runnable() {
+                        handler.postDelayed(new Runnable() { // Loop every 10ms to (try to) update the StreetViewPanoramaCamera
                             @Override
                             public void run() {
                                 if (moving) {
@@ -204,23 +176,21 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
                                     streetView.animateTo(nextCamera, animDuration);
                                     prevLocation = streetView.getLocation();
                                     streetView.setPosition(move(streetView.getLocation().position, deltaLatLng));
+                                    // Checking if the next position is valid otherwise go back
                                     if (streetView.getLocation().position == null) {
                                         streetView.setPosition(prevLocation.position);
                                     }
+                                    // Add the new position to the visited Path
                                     visitedPath.add(streetView.getLocation().position);
                                 }
                             }
                         }, 10);
-                    } else {
-                        //Wearable.getDataClient(MapsActivity.this).removeListener(MapsActivity.this);
                     }
                 } else {
                     Toast.makeText(getApplicationContext(),"ERROR",Toast.LENGTH_SHORT).show();
                 }
             }
         });
-        //dataClient = Wearable.getDataClient(getApplicationContext());
-        //dataClient.addListener(this);
     }
 
 
@@ -229,6 +199,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         super.onResume();
         mapView.onResume();
         streetViewPanoramaView.onResume();
+        // Add listener to DataClient created in WearActivity
         Wearable.getDataClient(this).addListener(this);
     }
 
@@ -237,6 +208,7 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         super.onPause();
         mapView.onPause();
         streetViewPanoramaView.onPause();
+        // Remove listener to DataClient created in WearActivity
         Wearable.getDataClient(this).removeListener(this);
     }
 
@@ -271,13 +243,9 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         mGoogleMap.clear();
         marker = mGoogleMap.addMarker(new MarkerOptions().position(point));
         streetView.setPosition(marker.getPosition());
-        /*Log.e("streetViewPos", streetView.toString());
-        if(streetView.getLocation() != null && streetView.getLocation().links != null){
-            panoramaAvailable = true;
-        } else {
-            Toast.makeText(this,"StreetView is not available here!", Toast.LENGTH_LONG).show();
-            panoramaAvailable = false;
-        }*/
+        visitedPath.clear();
+        visitedPath.add(marker.getPosition());
+        //TODO: check if the selected LatLng is valid for StreetView
     }
 
     @Override
@@ -308,13 +276,13 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
     @Override
     public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
         Log.e("debug", "OUTSIDE THE IF " + smartwatchMode);
-        if(viewSwitcher.getCurrentView() == streetViewLayout && smartwatchMode) {
+        if(smartwatchMode) {
             Log.e("debug", "INSIDE THE IF " + dataEventBuffer.getCount());
             for (DataEvent event : dataEventBuffer) {
-                if(event.getType() == DataEvent.TYPE_CHANGED) {
+                if(event.getType() == DataEvent.TYPE_CHANGED) { // If data on DataClient are changed
                     DataItem item = event.getDataItem();
                     Log.d("check", event.toString() + event.getDataItem().getUri().getPath());
-                    if (item.getUri().getPath().compareTo("/wear") == 0 ) {
+                    if (item.getUri().getPath().compareTo("/wear") == 0 ) { // If is the Item put in the WearActivity
                         /**
                          * accVec, gyroVec and orientVec are, in the wide majority of the cases, null.
                          * We cannot understand the reason.
@@ -334,8 +302,8 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
                     }
                 }
             }
-            if(accVec != null && magnitude(accVec) > 0.5f){
-                moving = true;
+            if(accVec != null && magnitude(accVec) > 0.1f){
+                moving = true; // Enables the StreetViewPanoramaCamera to be updated
             }
             /*if(zeroOrient == null){
                 zeroOrient = orientVec;
@@ -383,6 +351,8 @@ public class MainActivity extends Activity implements  OnMapReadyCallback,
         }
     }
 
+
+    // Helping funcions
     private static LatLng move(LatLng start, LatLng delta){
         return new LatLng(start.latitude + delta.latitude, start.longitude + delta.longitude);
     }
